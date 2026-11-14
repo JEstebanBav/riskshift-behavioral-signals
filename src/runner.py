@@ -155,7 +155,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--monitor",
         required=True,
         nargs="+",
-        help="uno o varios monitores: baseline (= baseline_point), baseline_cum, riskshift, gemini_point, gemini_history",
+        help="uno o varios monitores: baseline (= baseline_point), baseline_cum, riskshift, "
+        "llm_point[@modelo], llm_history[@modelo]",
     )
     parser.add_argument("--output", required=True, help="JSONL de resultados")
     parser.add_argument("--run-id", required=True, help="identificador de la corrida, p. ej. R001")

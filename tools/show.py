@@ -10,6 +10,8 @@ import argparse
 import collections
 import json
 
+from src.registry import display_name
+
 TAG = {"allow": ".", "audit": "A", "block": "B"}
 
 
@@ -38,7 +40,9 @@ def main() -> None:
             f"critical_idx={critical}  unsafe={any((r.get('evaluation') or {}).get('unsafe') for r in first_rows(monitors))}"
         )
         names = list(monitors)
-        print(f"{'idx':>3} {'evento':<8} " + " ".join(f"{name[:14]:>16}" for name in names))
+        labels = [display_name(name) for name in names]
+        widths = [max(16, len(label) + 1) for label in labels]
+        print(f"{'idx':>3} {'evento':<8} " + " ".join(f"{label:>{w}}" for label, w in zip(labels, widths)))
         n = len(next(iter(monitors.values())))
         for i in range(n):
             event_id = next(iter(monitors.values()))[i]["event_id"]
@@ -46,7 +50,7 @@ def main() -> None:
             for name in names:
                 res = monitors[name][i]
                 cells.append(f"{res['risk_score']:>12.3f} {TAG[res['decision']]}")
-            print(f"{i:>3} {event_id:<8} " + " ".join(f"{c:>16}" for c in cells))
+            print(f"{i:>3} {event_id:<8} " + " ".join(f"{c:>{w}}" for c, w in zip(cells, widths)))
 
     print("\nLeyenda: . allow | A audit | B block")
 

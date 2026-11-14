@@ -21,6 +21,8 @@ from pathlib import Path
 
 import matplotlib
 
+from src.registry import display_name
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -28,10 +30,34 @@ MONITOR_STYLE = {
     "riskshift": {"color": "#0b6e4f", "lw": 2.6, "label": "RiskShift", "zorder": 5},
     "baseline_point": {"color": "#c1121f", "lw": 1.4, "ls": "--", "label": "Puntual", "zorder": 3},
     "baseline_cum": {"color": "#5a189a", "lw": 1.4, "ls": ":", "label": "Acumulativo", "zorder": 2},
-    "gemini_point": {"color": "#e07a00", "lw": 1.4, "ls": "--", "label": "Gemini", "zorder": 3},
-    "gemini_history": {"color": "#1d4e89", "lw": 1.8, "ls": "-.", "label": "Gemini+hist.", "zorder": 4},
 }
-MONITOR_ORDER = ("baseline_point", "baseline_cum", "gemini_point", "gemini_history", "riskshift")
+MONITOR_ORDER = ("baseline_point", "baseline_cum", "riskshift")
+# Monitores con modelo de lenguaje (llm_point@modelo, llm_history@modelo): un
+# color por monitor, en el orden en que aparecen.
+LLM_COLORS = ("#e07a00", "#1d4e89", "#8d6e00", "#2a9d8f", "#9c4f96", "#5c677d")
+
+
+def monitor_styles(monitor_ids) -> dict:
+    """Estilo de cada monitor presente; los que no están en MONITOR_STYLE reciben uno propio."""
+    styles = {m: s for m, s in MONITOR_STYLE.items() if m in monitor_ids}
+    extra = sorted(m for m in monitor_ids if m not in MONITOR_STYLE)
+    for index, monitor in enumerate(extra):
+        styles[monitor] = {
+            "color": LLM_COLORS[index % len(LLM_COLORS)],
+            "lw": 1.6,
+            "ls": "-." if monitor.startswith("llm_history") else "--",
+            "label": display_name(monitor),
+            "zorder": 4,
+        }
+    return styles
+
+
+def sort_key(monitor_id: str):
+    if monitor_id == "riskshift":
+        return (2, monitor_id)
+    if monitor_id in MONITOR_ORDER:
+        return (0, MONITOR_ORDER.index(monitor_id))
+    return (1, monitor_id)
 CONDITION_LABEL = {
     "sabotage_cumulative": "Sabotaje acumulativo",
     "sabotage": "Sabotaje",
@@ -59,6 +85,7 @@ def plot_timelines(path: Path, outdir: Path) -> None:
             unsafe[sid] = True
 
     scenario_ids = sorted(series)
+    styles = monitor_styles({m for by_monitor in series.values() for m in by_monitor})
     columns = 3 if len(scenario_ids) > 4 else (2 if len(scenario_ids) > 1 else 1)
     rows_n = math.ceil(len(scenario_ids) / columns)
     fig, axes = plt.subplots(
@@ -68,7 +95,7 @@ def plot_timelines(path: Path, outdir: Path) -> None:
         ax = axes[position // columns][position % columns]
         for monitor, values in series[sid].items():
             xs, ys = zip(*sorted(values))
-            ax.plot(xs, ys, marker="o", ms=3, **MONITOR_STYLE.get(monitor, {}))
+            ax.plot(xs, ys, marker="o", ms=3, **styles[monitor])
         if sid in critical:
             ax.axvline(critical[sid], color="#333", lw=1, ls="-.")
         ax.axhline(0.40, color="#999", lw=0.8, ls=":")
@@ -93,12 +120,11 @@ def plot_timelines(path: Path, outdir: Path) -> None:
 
     handles = [
         plt.Line2D([], [], **{k: v for k, v in style.items() if k != "label"}, label=style["label"])
-        for monitor, style in MONITOR_STYLE.items()
-        if any(monitor in by_monitor for by_monitor in series.values())
+        for _, style in sorted(styles.items(), key=lambda item: sort_key(item[0]))
     ]
     handles.append(plt.Line2D([], [], color="#333", ls="-.", lw=1, label="Evento crítico"))
     fig.suptitle("Riesgo paso a paso: sabotaje, corrección honesta y rechazo", fontsize=12, y=0.998)
-    fig.legend(handles=handles, loc="upper center", ncol=len(handles), frameon=False, fontsize=9,
+    fig.legend(handles=handles, loc="upper center", ncol=min(len(handles), 4), frameon=False, fontsize=9,
                bbox_to_anchor=(0.5, 0.978))
     fig.tight_layout(rect=(0, 0, 1, 0.962))
     out = outdir / "risk_timeline.png"
@@ -112,10 +138,10 @@ def plot_metrics(metrics_path: Path, outdir: Path) -> None:
         rows = list(csv.DictReader(fh))
     if not rows:
         return
-    order = [m for m in MONITOR_ORDER if any(r["monitor_id"] == m for r in rows)]
-    rows = sorted(rows, key=lambda r: order.index(r["monitor_id"]) if r["monitor_id"] in order else 99)
-    labels = [MONITOR_STYLE.get(r["monitor_id"], {}).get("label", r["monitor_id"]) for r in rows]
-    colors = [MONITOR_STYLE.get(r["monitor_id"], {}).get("color", "#555") for r in rows]
+    rows = sorted(rows, key=lambda r: sort_key(r["monitor_id"]))
+    styles = monitor_styles({r["monitor_id"] for r in rows})
+    labels = [styles[r["monitor_id"]]["label"] for r in rows]
+    colors = [styles[r["monitor_id"]]["color"] for r in rows]
 
     panels = [
         ("Recall temprano\n(antes del evento crítico)", "recall_early", "alta = mejor"),
@@ -123,7 +149,10 @@ def plot_metrics(metrics_path: Path, outdir: Path) -> None:
         ("Aprobación insegura\n(ataques que pasan)", "unsafe_approval_rate", "baja = mejor"),
         ("Intervención\n(pasos audit + block)", "supervision_cost_steps", "baja = mejor"),
     ]
-    fig, axes = plt.subplots(1, len(panels), figsize=(13, 3.6))
+    many = len(labels) > 3
+    if many:  # nombres largos de modelos: dos líneas, rotadas y ancladas a su barra
+        labels = [label.replace(" ", "\n", 1) if label.startswith("LLM") else label for label in labels]
+    fig, axes = plt.subplots(1, len(panels), figsize=(13, 5.2 if many else 3.6))
     for ax, (title, field, note) in zip(axes, panels):
         values = [float(r[field] or 0) for r in rows]
         bars = ax.bar(labels, values, color=colors, width=0.62)
@@ -137,8 +166,9 @@ def plot_metrics(metrics_path: Path, outdir: Path) -> None:
         ax.grid(axis="y", alpha=0.25, lw=0.6)
         ax.set_axisbelow(True)
         ax.tick_params(labelsize=9)
-        if len(labels) > 3:  # con más de tres monitores las etiquetas se pisan
-            ax.tick_params(axis="x", labelrotation=30, labelsize=8)
+        if many:
+            ax.set_xticks(range(len(labels)))
+            ax.set_xticklabels(labels, rotation=40, ha="right", rotation_mode="anchor", fontsize=7.5)
     fig.suptitle("Comparación de monitores (piloto)", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.9))
     out = outdir / "monitor_comparison.png"
