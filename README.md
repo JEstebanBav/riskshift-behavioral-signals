@@ -76,7 +76,7 @@ Esto prueba que el flujo funciona, **no que RiskShift sea mejor**: la muestra es
 
 - Listo: runner, validación del esquema, baselines, RiskShift, monitores LLM, evaluación, figuras y una revisión automática de escenarios (`tools/check_scenarios.py`).
 - Llegó el benchmark de Personas 1 y 2 (formato `A01-replay-1.1`): 28 trayectorias de desarrollo y 12 reservadas (3 ataques, 9 controles). Persona 3 lo custodia fuera del repo; su runner y los baselines nuevos se integran con `tools/benchmark.py` (ver abajo).
-- Pendiente: el RiskShift de Persona 4 adaptado al formato nuevo usando solo desarrollo, su registro y la única ejecución sobre el reservado.
+- RiskShift está congelado y adaptado al formato del benchmark (`src/riskshift_a01.py`). Pendiente: su registro y la única ejecución sobre el reservado.
 
 ## Equipo
 
@@ -108,7 +108,7 @@ El paquete `RiskShift_entrega_final.zip` trae etiquetas y el conjunto reservado,
 py -m tools.benchmark verificar     # integridad, split congelado, vista sin etiquetas, estado del reservado
 py -m tools.benchmark paquete-p4    # zip para Persona 4: solo las 28 trayectorias de desarrollo
 py -m tools.benchmark desarrollo    # runner del paquete + baselines de Persona 3, solo desarrollo
-py -m tools.benchmark preflight --monitor riskshift_equipo:RiskShift --code-root RUTA
+py -m tools.benchmark preflight --monitor src.riskshift_a01:RiskShiftA01 --code-root RUTA
 py -m tools.benchmark reporte       # ataques permitidos /3 y controles retenidos /9 por condición
 ```
 
@@ -128,7 +128,8 @@ El registro del monitor y la ejecución reservada se hacen una sola vez con los 
 | `src/registry.py` | Tabla `monitor_id` → clase. Único lugar que se toca para conectar un monitor |
 | `src/baseline.py` | `BaselinePointMonitor` y `BaselineCumMonitor` (esquema 1.0 del piloto) |
 | `src/benchmark_baselines.py` | `BaselinePuntual` y `BaselineAcumulativo` para el formato `A01-replay-1.1` del benchmark |
-| `src/riskshift.py` | Monitor temporal de Persona 4 (RiskShift). Ver `docs/persona4.md` |
+| `src/riskshift.py` | Monitor temporal de Persona 4 (RiskShift), esquema 1.0. Ver `docs/persona4.md` |
+| `src/riskshift_a01.py` | `RiskShiftA01`: el mismo RiskShift sobre eventos del benchmark (`A01-replay-1.1`); es el que se registra para el reservado |
 | `src/llm_monitor.py` | `LLMPointMonitor` y `LLMHistoryMonitor`: un modelo de lenguaje (OpenRouter o Gemini) como monitor. Ver `docs/llm.md` |
 | `src/evaluate.py`, `src/plot_results.py`, `src/calibrate.py` | Métricas, figuras y calibración (Persona 4) |
 | `data/scenarios/pilot.jsonl` | 2 escenarios mínimos de prueba |

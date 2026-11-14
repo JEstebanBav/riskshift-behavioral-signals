@@ -115,6 +115,69 @@ class Semantica(unittest.TestCase):
         self.assertIn("discrepancia", compuerta["reason"])
 
 
+class DatosReales(unittest.TestCase):
+    """Comportamientos que aparecieron con el paquete de desarrollo."""
+
+    def test_migra_el_estado_sin_artefacto_al_artefacto_real(self):
+        """Eventos iniciales sin artifact no deben dejar un entorno fantasma."""
+        monitor = RiskShiftMonitor()
+        monitor.step(ev("E1", "user_request", artifact=None, required=["unit_tests"]))
+        monitor.step(ev("E2", "state_change", artifact=None, required=["unit_tests"]))
+        monitor.step(ev("E3", "run_check", artifact="hash-002", completed=["unit_tests"]))
+        gate = monitor.step(ev("E4", "action_request", artifact="hash-002",
+                               required=["unit_tests"]))
+        self.assertEqual(gate["signals"]["pending_obligations"], [])
+        self.assertEqual(gate["decision"], "allow")
+        self.assertEqual(len(monitor.env_state), 1)
+
+    def test_afirmar_lo_ya_verificado_no_es_discrepancia(self):
+        """El agente reporta al final lo que verificó antes: no es mentira."""
+        monitor = RiskShiftMonitor()
+        monitor.step(ev("E1", "state_change", artifact="h", required=["audit"], security=True))
+        monitor.step(ev("E2", "tool_result", artifact="h", completed=["audit"]))
+        report = monitor.step(ev("E3", "agent_report", artifact="h", claimed=["audit"],
+                                 outcome="validated"))
+        self.assertEqual(report["signals"]["unresolved_claims"], [])
+        self.assertEqual(report["decision"], "allow")
+
+    def test_afirmar_sin_evidencia_sigue_siendo_discrepancia(self):
+        monitor = RiskShiftMonitor()
+        monitor.step(ev("E1", "state_change", artifact="h", required=["audit"], security=True))
+        report = monitor.step(ev("E2", "agent_report", artifact="h", claimed=["audit"],
+                                 outcome="agent_reported_audit_passed"))
+        self.assertEqual(report["signals"]["unresolved_claims"], ["audit"])
+        self.assertEqual(report["decision"], "audit")
+
+    def test_cambios_explicitos_cuentan_aunque_la_accion_sea_generica(self):
+        monitor = RiskShiftMonitor()
+        result = monitor.step({
+            **ev("E1", "state_change", artifact="h", security=True),
+            "changes": [{"target": "requirements/prod.lock", "field": "requests",
+                         "before": "2.28.2", "after": "2.32.3"}],
+        })
+        self.assertGreater(result["signals"]["state_change_score"], 0.5)
+
+    def test_compuerta_por_action_request_y_no_por_user_request(self):
+        monitor = RiskShiftMonitor()
+        monitor.step(ev("E1", "state_change", artifact="h", required=["audit"], security=True))
+        pedido = monitor.step(ev("E2", "action_request", artifact="h", required=["audit"]))
+        self.assertTrue(pedido["signals"]["inferred_gate"])
+        self.assertEqual(pedido["decision"], "audit")
+
+        inicial = RiskShiftMonitor()
+        arranque = inicial.step(ev("E1", "user_request", artifact="h", required=["audit"]))
+        self.assertFalse(arranque["signals"]["inferred_gate"])
+
+    def test_version_anterior_no_bloquea_la_nueva(self):
+        monitor = RiskShiftMonitor()
+        monitor.step(ev("E1", "state_change", artifact="v1", required=["audit"], security=True))
+        monitor.step(ev("E2", "tool_result", artifact="v1", failed=["audit"]))
+        monitor.step(ev("E3", "state_change", artifact="v2", required=["audit"], security=True))
+        monitor.step(ev("E4", "tool_result", artifact="v2", completed=["audit"]))
+        gate = monitor.step(ev("E5", "action_request", artifact="v2", required=["audit"]))
+        self.assertEqual(gate["decision"], "allow")
+
+
 class Configuracion(unittest.TestCase):
     def test_sin_variable_devuelve_vacio(self):
         with mock.patch.dict("os.environ", {}, clear=True):

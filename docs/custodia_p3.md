@@ -55,23 +55,32 @@ Los baselines se construyeron solo con la estructura de desarrollo y la polític
 - **Puntual**: sin memoria. En la solicitud crítica exige que las verificaciones requeridas aparezcan aprobadas en ese mismo evento; si no, `audit`.
 - **Acumulativo**: recuerda el último resultado de cada verificación en toda la trayectoria, sin mirar artefacto, entorno ni alcance. Bloquea si una requerida falló, audita si falta alguna o si el agente afirmó una verificación sin respaldo.
 
-## 4. Cuando Persona 4 entregue RiskShift
+## 4. Registrar RiskShift y ejecutar el reservado
 
-Persona 4 entrega una **carpeta aislada** con solo su monitor y lo que importa (sin `.env`, datos, resultados ni el repo completo: el hash cubre todo lo que haya dentro). Por ejemplo `C:\Users\38614180\riskshift-behavioral-signals\codigo_p4`, con `riskshift_equipo.py` adentro.
+El monitor del equipo es `src.riskshift_a01:RiskShiftA01` (ver `docs/persona4.md`, sección 7). Se registra desde una **carpeta aislada**, fuera del repo y del paquete, con solo estos archivos copiados del repo (el hash cubre todo lo que haya dentro, así que nada de `.env`, datos ni resultados):
+
+```
+codigo_p4\src\__init__.py
+codigo_p4\src\base_monitor.py
+codigo_p4\src\config.py
+codigo_p4\src\riskshift.py        (SHA-256 e1b43aec… con finales de línea LF)
+codigo_p4\src\riskshift_a01.py
+```
 
 Antes del intento único:
 
 ```
-py -m tools.benchmark preflight --monitor riskshift_equipo:RiskShift --code-root "C:\...\codigo_p4"
+Remove-Item Env:RISKSHIFT_PARAMS -ErrorAction SilentlyContinue
+py -m tools.benchmark preflight --monitor src.riskshift_a01:RiskShiftA01 --code-root "C:\...\codigo_p4"
 ```
 
-Verifica, sin registrar nada, que el registro aceptaría la carpeta, que el monitor importa con solo esa carpeta en el path, que corre sin fallar sobre desarrollo, que es determinista y que no modifica su propia carpeta. Al final imprime los dos comandos exactos.
+Verifica, sin registrar nada, que el registro aceptaría la carpeta, que el monitor importa con solo esa carpeta en el path, que corre sin fallar sobre desarrollo, que es determinista y que no modifica su propia carpeta. También lo evalúa sobre desarrollo con las etiquetas reales (`custodia\resultados_p3\desarrollo_equipo_resumen.md`, no se comparte con Persona 4). Al final imprime los dos comandos exactos.
 
-Cuando Persona 4 confirme que el código es definitivo, desde `custodia\entrega_final`:
+Luego, desde `custodia\entrega_final`:
 
 ```
-py scripts/registrar_monitor.py --monitor riskshift_equipo:RiskShift --code-root "C:\...\codigo_p4"
-py scripts/ejecutar_a01.py --dataset reservado --monitor riskshift_equipo:RiskShift --search-path "C:\...\codigo_p4" --monitor-sha256 HASH_QUE_IMPRIMIÓ_EL_REGISTRO
+py scripts/registrar_monitor.py --monitor src.riskshift_a01:RiskShiftA01 --code-root "C:\...\codigo_p4"
+py scripts/ejecutar_a01.py --dataset reservado --monitor src.riskshift_a01:RiskShiftA01 --search-path "C:\...\codigo_p4" --monitor-sha256 HASH_QUE_IMPRIMIÓ_EL_REGISTRO
 ```
 
 - El registro escribe `reservado\monitor_congelado.json` una sola vez. Después no se puede cambiar el código ni registrar otra versión.

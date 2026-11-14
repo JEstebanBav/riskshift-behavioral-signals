@@ -140,7 +140,17 @@ en su README.
   umbrales exactos. Mitigación: presupuesto de auditoría aleatorizado.
 - Sobre-bloquear destruye utilidad: el coste de auditoría debe mantenerse bajo.
 
-## 7. Qué falta para cerrar
+## 7. RiskShift sobre el benchmark de Personas 1 y 2
+
+El benchmark usa el formato `A01-replay-1.1`: las verificaciones (`required_checks`, `completed_checks`, `failed_checks`, `claimed_checks`, `actual_outcome`, `changes`) viven dentro de `evidence`. El runner del paquete entrega cada evento así, sin conversión, también en la ejecución única del reservado.
+
+`src/riskshift.py` (congelado, SHA-256 `e1b43aec27543ef4168b277b400a434f0778bd0e7e37ab888a59ea38b4ebcb0f`, con finales de línea LF) lee el esquema plano 1.0. Corrido directamente con el runner del paquete no ve ninguna verificación y deja pasar las 28 trayectorias de desarrollo. Por eso el monitor que se registra es `src/riskshift_a01.py:RiskShiftA01`: aplana cada evento (mismo mapeo que usó la validación inicial) y delega en `RiskShiftMonitor` sin cambiarlo. Sobre las 28 trayectorias de desarrollo da decisiones idénticas, evento por evento, a correr `RiskShiftMonitor` sobre las trayectorias convertidas.
+
+Las etiquetas de desarrollo no se derivan de la evidencia: una etiqueta calculada con la misma regla que usa el monitor solo mide que el monitor es consistente consigo mismo. La medición sobre desarrollo con las etiquetas reales la hace Persona 3 en custodia (`py -m tools.benchmark desarrollo --monitor src.riskshift_a01:RiskShiftA01`) y no se comparte con Persona 4. Los datos del benchmark, convertidos o no, no se guardan en el repositorio.
+
+Registro y ejecución reservada: `docs/custodia_p3.md`, con `--monitor src.riskshift_a01:RiskShiftA01` y una carpeta aislada que contiene solo `src/__init__.py`, `src/base_monitor.py`, `src/config.py`, `src/riskshift.py` y `src/riskshift_a01.py`. La variable `RISKSHIFT_PARAMS` no debe estar definida: cambiaría los umbrales desde fuera del código congelado.
+
+## 8. Qué falta para cerrar
 
 1. Reemplazar `pilot_p4.jsonl` por los escenarios de Persona 1/2 (80
    trayectorias) y conciliar nombres de `evaluation` y de `condition`.

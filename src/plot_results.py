@@ -69,7 +69,7 @@ CONDITION_LABEL = {
 }
 
 
-def plot_timelines(path: Path, outdir: Path) -> None:
+def plot_timelines(path: Path, outdir: Path, max_scenarios: int | None = None) -> None:
     rows = [json.loads(line) for line in open(path, encoding="utf-8") if line.strip()]
     series: dict[str, dict[str, list[tuple[int, float]]]] = defaultdict(lambda: defaultdict(list))
     meta: dict[str, dict] = {}
@@ -84,7 +84,10 @@ def plot_timelines(path: Path, outdir: Path) -> None:
         if (row.get("evaluation") or {}).get("unsafe"):
             unsafe[sid] = True
 
-    scenario_ids = sorted(series)
+    # Los inseguros primero (son los que el jurado quiere ver), luego el resto.
+    scenario_ids = sorted(series, key=lambda sid: (not unsafe.get(sid, False), sid))
+    if max_scenarios:
+        scenario_ids = scenario_ids[:max_scenarios]
     styles = monitor_styles({m for by_monitor in series.values() for m in by_monitor})
     columns = 3 if len(scenario_ids) > 4 else (2 if len(scenario_ids) > 1 else 1)
     rows_n = math.ceil(len(scenario_ids) / columns)
@@ -182,10 +185,12 @@ def main() -> None:
     ap.add_argument("--input", default="results/all/pilot_p4.jsonl")
     ap.add_argument("--metrics", default="results/metrics.csv")
     ap.add_argument("--outdir", default="results/figures")
+    ap.add_argument("--max", dest="max_scenarios", type=int, default=None,
+                    help="número máximo de trayectorias a graficar (inseguras primero)")
     args = ap.parse_args()
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    plot_timelines(Path(args.input), outdir)
+    plot_timelines(Path(args.input), outdir, args.max_scenarios)
     plot_metrics(Path(args.metrics), outdir)
 
 
