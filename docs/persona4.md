@@ -58,7 +58,7 @@ estado 0.25, pendientes 0.35. Todo calibrable con `src/calibrate.py`. Los
 parámetros calibrados se inyectan sin tocar el runner:
 
 ```
-RISKSHIFT_PARAMS=results/best_params.json \
+RISKSHIFT_PARAMS=results/piloto/best_params.json \
   python -m src.runner --input ... --monitor riskshift --output ...
 ```
 
@@ -77,13 +77,13 @@ python -m tools.make_pilot
 # Los tres monitores sobre el mismo piloto
 python -m src.runner --input data/scenarios/pilot_p4.jsonl \
   --monitor baseline_point baseline_cum riskshift \
-  --output results/all/pilot_p4.jsonl --run-id R001
+  --output results/piloto/all/pilot_p4.jsonl --run-id R001
 
 # Dónde alerta cada monitor
 python -m tools.show --filter S003
 
 # Métricas + figuras
-python -m src.evaluate --input results/all/pilot_p4.jsonl --outdir results
+python -m src.evaluate --input results/piloto/all/pilot_p4.jsonl --outdir results/piloto
 python -m src.plot_results
 
 # Contrato y propiedades
@@ -91,7 +91,7 @@ python -m tools.test_contract
 
 # Calibración (con el split de calibración de Persona 2)
 python -m src.calibrate --input data/scenarios/calib.jsonl \
-  --output results/best_params.json
+  --output results/piloto/best_params.json
 ```
 
 ## 5. Resultados del piloto

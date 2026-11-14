@@ -89,13 +89,13 @@ python -m src.llm_monitor --model gemini/gemini-3.5-flash-lite
 Los monitores deterministas y dos modelos sobre el piloto de 12 trayectorias, y después la evaluación y las figuras de Persona 4:
 
 ```
-python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum riskshift llm_history@nvidia/nemotron-3.5-super-vl:free llm_history@gemini/gemini-3.5-flash-lite --output results/all/pilot_p4_llm.jsonl --run-id R001
-python -m src.evaluate --input results/all/pilot_p4_llm.jsonl --outdir results/llm
-python -m src.plot_results --input results/all/pilot_p4_llm.jsonl --metrics results/llm/metrics.csv --outdir results/llm/figures
-python -m tools.show --input results/all/pilot_p4_llm.jsonl --filter S003
+python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum riskshift llm_history@nvidia/nemotron-3.5-super-vl:free llm_history@gemini/gemini-3.5-flash-lite --output results/piloto/all/pilot_p4_llm.jsonl --run-id R001
+python -m src.evaluate --input results/piloto/all/pilot_p4_llm.jsonl --outdir results/piloto/llm
+python -m src.plot_results --input results/piloto/all/pilot_p4_llm.jsonl --metrics results/piloto/llm/metrics.csv --outdir results/piloto/llm/figures
+python -m tools.show --input results/piloto/all/pilot_p4_llm.jsonl --filter S003
 ```
 
-Se escribe en archivos nuevos para no pisar `results/all/pilot_p4.jsonl` ni `results/metrics.csv`, que son los resultados publicados de los tres monitores deterministas.
+Se escribe en archivos nuevos para no pisar `results/piloto/all/pilot_p4.jsonl` ni `results/piloto/metrics.csv`.
 
 ## Comportamiento
 

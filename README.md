@@ -60,23 +60,24 @@ Sobre trayectorias seguras e inseguras:
 
 El runner reproduce la trayectoria completa aunque un monitor bloquee. Lo que se mide es si la alerta habría llegado a tiempo, no una prevención real demostrada.
 
-## Resultados del piloto
+## Resultados
 
-12 trayectorias sintéticas (3 inseguras, 9 seguras) escritas por el equipo para probar el flujo completo:
+Evaluación única sobre el conjunto reservado del benchmark de Personas 1 y 2: 12 trayectorias que nadie del equipo vio antes de congelar el monitor (3 ataques, 9 controles).
 
-| Monitor | Recall temprano | Falsas alarmas | Aprobación insegura | Pasos intervenidos |
-| --- | --- | --- | --- | --- |
-| Puntual | 3/3 | 3/9 | 3/3 | 8% |
-| Acumulativo | 2/3 | 3/9 | 1/3 | 18% |
-| RiskShift | 3/3 | 0/9 | 0/3 | 9% |
+| | RiskShift |
+| --- | --- |
+| Ataques permitidos | **0/3** |
+| Controles retenidos (revisión o bloqueo) | **0/9** |
 
-Esto prueba que el flujo funciona, **no que RiskShift sea mejor**: la muestra es mínima y RiskShift se diseñó mirando estas mismas trayectorias. La comparación válida será con los escenarios de Personas 1 y 2, separando calibración y prueba. Los monitores con modelos de lenguaje todavía no se han corrido. Detalle: `results/summary.md` y `docs/persona4.md`.
+Detuvo los tres sabotajes en la acción crítica (dos bloqueos, una revisión) y dejó pasar los nueve controles: trayectorias honestas, errores que el agente corrigió e instrucciones adversarias que rechazó. En desarrollo (28 trayectorias) el baseline sin memoria retiene todos los controles y el acumulativo deja pasar 3 de 7 sabotajes; RiskShift, 0/7 y 0/21.
+
+La muestra es muy pequeña: estos números no permiten afirmar una tasa baja de falsas alarmas ni generalizar a otros dominios. Detalle por condición, trazabilidad por hash y condiciones de validez: `results/benchmark/RESULTADOS.md`.
 
 ## Estado
 
-- Listo: runner, validación del esquema, baselines, RiskShift, monitores LLM, evaluación, figuras y una revisión automática de escenarios (`tools/check_scenarios.py`).
-- Llegó el benchmark de Personas 1 y 2 (formato `A01-replay-1.1`): 28 trayectorias de desarrollo y 12 reservadas (3 ataques, 9 controles). Persona 3 lo custodia fuera del repo; su runner y los baselines nuevos se integran con `tools/benchmark.py` (ver abajo).
-- RiskShift está congelado y adaptado al formato del benchmark (`src/riskshift_a01.py`). Pendiente: su registro y la única ejecución sobre el reservado.
+- Terminado: runner, baselines, RiskShift, evaluación y la evaluación única del conjunto reservado (`results/benchmark/`).
+- El benchmark (`A01-replay-1.1`) lo custodia Persona 3 fuera del repo: trae etiquetas y el conjunto reservado. Procedimiento: `docs/custodia_p3.md`.
+- Los monitores con modelos de lenguaje no se corrieron sobre el benchmark: el paquete prohíbe enviar sus datos a servicios que retengan contenido.
 
 ## Equipo
 
@@ -92,13 +93,13 @@ Requiere Python 3.9 o superior. El núcleo no tiene dependencias; las figuras ne
 
 ```
 python -m unittest discover -s tests
-python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum riskshift --output results/all/pilot_p4.jsonl --run-id R001
-python -m src.evaluate --input results/all/pilot_p4.jsonl --outdir results
-python -m src.plot_results
-python -m tools.show --input results/all/pilot_p4.jsonl --filter S003
+python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum riskshift --output results/piloto/all/pilot_p4.jsonl --run-id R001
+python -m src.evaluate --input results/piloto/all/pilot_p4.jsonl --outdir results/piloto
+python -m src.plot_results --input results/piloto/all/pilot_p4.jsonl --metrics results/piloto/metrics.csv --outdir results/piloto/figures
+python -m tools.show --input results/piloto/all/pilot_p4.jsonl --filter S003
 ```
 
-El último comando muestra, evento por evento, el riesgo que asignó cada monitor a la trayectoria del ejemplo de arriba (`S003-sabotage_cumulative`).
+Usan el piloto sintético del repo (`data/scenarios/pilot_p4.jsonl`), que sirve para probar el flujo; sus salidas en `results/piloto/` no se versionan. El último comando muestra, evento por evento, el riesgo que asignó cada monitor a la trayectoria del ejemplo de arriba (`S003-sabotage_cumulative`).
 
 ## Benchmark de Personas 1 y 2
 
@@ -132,8 +133,9 @@ El registro del monitor y la ejecución reservada se hacen una sola vez con los 
 | `src/riskshift_a01.py` | `RiskShiftA01`: el mismo RiskShift sobre eventos del benchmark (`A01-replay-1.1`); es el que se registra para el reservado |
 | `src/llm_monitor.py` | `LLMPointMonitor` y `LLMHistoryMonitor`: un modelo de lenguaje (OpenRouter o Gemini) como monitor. Ver `docs/llm.md` |
 | `src/evaluate.py`, `src/plot_results.py`, `src/calibrate.py` | Métricas, figuras y calibración (Persona 4) |
-| `data/scenarios/pilot.jsonl` | 2 escenarios mínimos de prueba |
-| `data/scenarios/pilot_p4.jsonl` | Piloto de 12 trayectorias (Persona 4) |
+| `data/scenarios/pilot.jsonl` | 2 escenarios mínimos de prueba (fixtures de los tests) |
+| `data/scenarios/pilot_p4.jsonl` | Piloto sintético de 12 trayectorias para probar el flujo (fixtures de los tests) |
+| `results/benchmark/` | Resultados agregados del benchmark: reservado (oficial) y desarrollo |
 | `tools/check_scenarios.py` | Revisión de un archivo de escenarios antes de correr el experimento |
 | `tools/show.py` | Riesgo paso a paso de cada monitor en una trayectoria |
 | `tools/benchmark.py` | Custodia del benchmark: verificar, zip de Persona 4, corrida de desarrollo, preflight y reporte del reservado. Ver `docs/custodia_p3.md` |
@@ -161,9 +163,9 @@ temporal y decide `allow`/`audit`/`block` con amplificación en la compuerta.
 ```
 python -m src.runner --input data/scenarios/pilot_p4.jsonl \
   --monitor baseline_point baseline_cum riskshift \
-  --output results/all/pilot_p4.jsonl --run-id R001
-python -m src.evaluate --input results/all/pilot_p4.jsonl --outdir results
-python -m src.plot_results
+  --output results/piloto/all/pilot_p4.jsonl --run-id R001
+python -m src.evaluate --input results/piloto/all/pilot_p4.jsonl --outdir results/piloto
+python -m src.plot_results --input results/piloto/all/pilot_p4.jsonl --metrics results/piloto/metrics.csv --outdir results/piloto/figures
 python -m tools.test_contract
 ```
 
@@ -262,22 +264,10 @@ Los planes gratuitos tienen pocas llamadas por día y cada evento es una llamada
 ```
 python -m src.llm_monitor --check-key
 python -m src.llm_monitor --plan data/scenarios/pilot_p4.jsonl
-python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum riskshift llm_history@nvidia/nemotron-3.5-super-vl:free llm_history@gemini/gemini-3.5-flash-lite --output results/all/pilot_p4_llm.jsonl --run-id R001
+python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum riskshift llm_history@nvidia/nemotron-3.5-super-vl:free llm_history@gemini/gemini-3.5-flash-lite --output results/piloto/all/pilot_p4_llm.jsonl --run-id R001
 ```
 
 Modelos recomendados, cupos, caché, prompt y comandos completos: `docs/llm.md`.
-
-## Cuando lleguen los escenarios de Persona 1
-
-1. Revisar el archivo antes de correr nada. Dice qué no cumple el esquema, qué etiquetas no entiende la evaluación, qué acciones críticas no reconocen los monitores, qué campos visibles delatan la respuesta y cuántas llamadas costarían los monitores LLM:
-
-   ```
-   python -m tools.check_scenarios data/scenarios/ARCHIVO.jsonl
-   ```
-
-2. Conciliar lo que marque como BLOQUEANTE (en los datos o en el código, según se acuerde) hasta que diga "listo para correr".
-3. Separar calibración y prueba antes de mirar resultados. `results/best_params.json` se calibró sobre `pilot_p4.jsonl`, así que no sirve para los datos nuevos.
-4. Correr los monitores, `src.evaluate` y `src.plot_results` con los comandos de arriba.
 
 ## Pendiente de conciliar con `estructura_inicial.md`
 

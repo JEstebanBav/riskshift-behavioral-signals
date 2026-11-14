@@ -13,3 +13,6 @@ RiskShift_entrega_final.zip
 RiskShift_solo_desarrollo.zip
 custodia/
 resultados_p3/
+
+# Salidas de pruebas locales con el piloto sintético
+results/piloto/
