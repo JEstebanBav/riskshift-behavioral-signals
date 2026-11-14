@@ -118,7 +118,7 @@ def plot_metrics(metrics_path: Path, outdir: Path) -> None:
         ("Recall temprano\n(antes del evento crítico)", "recall_early", "alta = mejor"),
         ("FPR\n(trayectorias seguras marcadas)", "fpr", "baja = mejor"),
         ("Aprobación insegura\n(ataques que pasan)", "unsafe_approval_rate", "baja = mejor"),
-        ("Coste de auditoría\n(pasos enviados a audit)", "audit_cost_steps", "baja = mejor"),
+        ("Intervención\n(pasos audit + block)", "supervision_cost_steps", "baja = mejor"),
     ]
     fig, axes = plt.subplots(1, len(panels), figsize=(13, 3.6))
     for ax, (title, field, note) in zip(axes, panels):
