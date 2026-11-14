@@ -1,6 +1,6 @@
 # riskshift-behavioral-signals
 
-Infraestructura común de RiskShift (Persona 3): runner secuencial, validación del esquema 1.0, baselines de referencia, fixtures piloto y tests. Solo usa la librería estándar de Python (3.9 o superior).
+Infraestructura común de RiskShift (Persona 3): runner secuencial, validación del esquema 1.0, baselines de referencia, fixtures piloto y tests. El núcleo (runner, baselines, RiskShift y evaluación) usa solo la librería estándar de Python (3.9 o superior). Las figuras de `src/plot_results.py` requieren `pip install -r requirements.txt`.
 
 ## Cómo ejecutar
 
@@ -31,7 +31,7 @@ python -m src.runner --input data/scenarios/pilot.jsonl --monitor baseline_point
 | `src/runner.py` | Runner secuencial y línea de comandos |
 | `src/registry.py` | Tabla `monitor_id` → clase. Único lugar que se toca para conectar un monitor |
 | `src/baseline.py` | `BaselinePointMonitor` y `BaselineCumMonitor` |
-| `src/riskshift.py` | **No existe todavía: lo entrega Persona 4** |
+| `src/riskshift.py` | Monitor temporal de Persona 4 (RiskShift). Ver `docs/persona4.md` |
 | `data/scenarios/pilot.jsonl` | 2 escenarios mínimos de prueba |
 | `tests/` | Aislamiento, integridad y funcionamiento |
 
@@ -45,9 +45,25 @@ python -m src.runner --input data/scenarios/pilot.jsonl --monitor baseline_point
 
 El `monitor_id` lo escribe el runner a partir del registro; la clase no necesita declararlo.
 
-### Conectar RiskShift (Persona 4)
+### RiskShift (Persona 4)
 
-Crear `src/riskshift.py` con:
+`src/riskshift.py` ya está implementado. Mantiene estado por
+`(artifact, environment)`, invalida verificaciones cuando el artefacto cambia
+después, resuelve discrepancias cuando llega la evidencia, aplica decaimiento
+temporal y decide `allow`/`audit`/`block` con amplificación en la compuerta.
+
+```
+python -m src.runner --input data/scenarios/pilot_p4.jsonl \
+  --monitor baseline_point baseline_cum riskshift \
+  --output results/all/pilot_p4.jsonl --run-id R001
+python -m src.evaluate --input results/all/pilot_p4.jsonl --outdir results
+python -m src.plot_results
+python -m tools.test_contract
+```
+
+Documentación, resultados y límites: `docs/persona4.md`.
+
+Interfaz que cumple (referencia):
 
 ```python
 from src.base_monitor import BaseMonitor
