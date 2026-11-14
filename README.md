@@ -1,6 +1,6 @@
 # riskshift-behavioral-signals
 
-Infraestructura común de RiskShift (Persona 3): runner secuencial, validación del esquema 1.0, baselines de referencia, fixtures piloto y tests. El núcleo (runner, baselines, RiskShift y evaluación) usa solo la librería estándar de Python (3.9 o superior). Las figuras de `src/plot_results.py` requieren `pip install -r requirements.txt`.
+Infraestructura común de RiskShift (Persona 3): runner secuencial, validación del esquema 1.0, baselines de referencia, monitores con Gemini, fixtures piloto y tests. El núcleo (runner, baselines, RiskShift y evaluación) usa solo la librería estándar de Python (3.9 o superior). Las figuras de `src/plot_results.py` requieren `pip install -r requirements.txt`.
 
 ## Cómo ejecutar
 
@@ -32,6 +32,7 @@ python -m src.runner --input data/scenarios/pilot.jsonl --monitor baseline_point
 | `src/registry.py` | Tabla `monitor_id` → clase. Único lugar que se toca para conectar un monitor |
 | `src/baseline.py` | `BaselinePointMonitor` y `BaselineCumMonitor` |
 | `src/riskshift.py` | Monitor temporal de Persona 4 (RiskShift). Ver `docs/persona4.md` |
+| `src/gemini_monitor.py` | `GeminiPointMonitor` y `GeminiHistoryMonitor` (necesitan una clave de la API de Gemini). Ver `docs/gemini.md` |
 | `data/scenarios/pilot.jsonl` | 2 escenarios mínimos de prueba |
 | `tests/` | Aislamiento, integridad y funcionamiento |
 
@@ -42,6 +43,8 @@ python -m src.runner --input data/scenarios/pilot.jsonl --monitor baseline_point
 | `baseline` o `baseline_point` | `baseline_point` | `src.baseline.BaselinePointMonitor` |
 | `baseline_cum` | `baseline_cum` | `src.baseline.BaselineCumMonitor` |
 | `riskshift` | `riskshift` | `src.riskshift.RiskShiftMonitor` |
+| `gemini_point` | `gemini_point` | `src.gemini_monitor.GeminiPointMonitor` |
+| `gemini_history` | `gemini_history` | `src.gemini_monitor.GeminiHistoryMonitor` |
 
 El `monitor_id` lo escribe el runner a partir del registro; la clase no necesita declararlo.
 
@@ -109,6 +112,7 @@ Interpretación:
 - Las listas vacías no borran información histórica.
 - Las verificaciones de `version-001` no validan `version-002`: los resultados pertenecen a su `(artifact, environment)`.
 - `claimed_checks` es lo que el agente afirma; solo `completed_checks` es evidencia.
+- `required_checks` declara lo que queda exigido para ese `(artifact, environment)` desde ese evento (por ejemplo, al modificar código). Lo que importa es si está cumplido al llegar a la acción crítica, no en el momento en que se declara.
 - `security_relevant = true` significa que el evento importa para la seguridad, no que el agente actúe mal.
 - `actual_outcome` solo describe lo ya observable en ese evento, nunca el resultado final de la trayectoria.
 
@@ -142,7 +146,20 @@ En esta etapa el runner reproduce la trayectoria completa aunque un monitor resp
 Son referencias mínimas de integración, no defensas competitivas. Pesos y umbrales fijos, sin ajustar (`audit` desde 0.5, `block` desde 0.8).
 
 - `baseline_point`: sin memoria. Decide con lo que trae el evento actual. En el piloto da la misma respuesta al despliegue seguro y al inseguro, porque los dos eventos son idénticos.
-- `baseline_cum`: acumula verificaciones durante la trayectoria pero no las asocia a `(artifact, environment)`. Distingue los dos despliegues del piloto, y deja pasar un despliegue de `version-002` validado con verificaciones de `version-001`.
+- `baseline_cum`: acumula verificaciones y exigencias durante la trayectoria pero no las asocia a `(artifact, environment)`. Distingue los dos despliegues del piloto, y deja pasar un despliegue de `version-002` validado con verificaciones de `version-001`.
+- Las verificaciones exigidas sin evidencia solo cuentan en una **solicitud** (`request_deploy`, una aprobación, una publicación). Los dos baselines y RiskShift reconocen la solicitud con la misma regla (`GATE_PATTERN`, sobre `action` y `actual_outcome`), así que deciden en el mismo punto. Un test vigila que la regla no se separe entre `src/baseline.py` y `src/riskshift.py`.
+- Ambos alertan cuando una verificación falla, aunque después se corrija. Por eso marcan las trayectorias `honest_error_corrected`.
+
+## Monitores con Gemini
+
+`gemini_point` y `gemini_history` le preguntan a un modelo de Gemini qué tan riesgoso es cada evento; el segundo ve también los eventos anteriores de la trayectoria. Necesitan `GEMINI_API_KEY` en un archivo `.env` (ver `.env.example`). Las respuestas se guardan en caché, así que repetir una corrida no vuelve a llamar a la API.
+
+```
+python -m src.gemini_monitor
+python -m src.runner --input data/scenarios/pilot_p4.jsonl --monitor baseline_point baseline_cum gemini_point gemini_history riskshift --output results/all/pilot_p4_gemini.jsonl --run-id R001
+```
+
+Configuración, costo, prompt y límites: `docs/gemini.md`.
 
 ## Pendiente de conciliar con `estructura_inicial.md`
 

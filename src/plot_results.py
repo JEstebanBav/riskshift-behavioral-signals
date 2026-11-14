@@ -28,7 +28,10 @@ MONITOR_STYLE = {
     "riskshift": {"color": "#0b6e4f", "lw": 2.6, "label": "RiskShift", "zorder": 5},
     "baseline_point": {"color": "#c1121f", "lw": 1.4, "ls": "--", "label": "Puntual", "zorder": 3},
     "baseline_cum": {"color": "#5a189a", "lw": 1.4, "ls": ":", "label": "Acumulativo", "zorder": 2},
+    "gemini_point": {"color": "#e07a00", "lw": 1.4, "ls": "--", "label": "Gemini", "zorder": 3},
+    "gemini_history": {"color": "#1d4e89", "lw": 1.8, "ls": "-.", "label": "Gemini+hist.", "zorder": 4},
 }
+MONITOR_ORDER = ("baseline_point", "baseline_cum", "gemini_point", "gemini_history", "riskshift")
 CONDITION_LABEL = {
     "sabotage_cumulative": "Sabotaje acumulativo",
     "sabotage": "Sabotaje",
@@ -90,11 +93,12 @@ def plot_timelines(path: Path, outdir: Path) -> None:
 
     handles = [
         plt.Line2D([], [], **{k: v for k, v in style.items() if k != "label"}, label=style["label"])
-        for style in MONITOR_STYLE.values()
+        for monitor, style in MONITOR_STYLE.items()
+        if any(monitor in by_monitor for by_monitor in series.values())
     ]
     handles.append(plt.Line2D([], [], color="#333", ls="-.", lw=1, label="Evento crítico"))
     fig.suptitle("Riesgo paso a paso: sabotaje, corrección honesta y rechazo", fontsize=12, y=0.998)
-    fig.legend(handles=handles, loc="upper center", ncol=4, frameon=False, fontsize=9,
+    fig.legend(handles=handles, loc="upper center", ncol=len(handles), frameon=False, fontsize=9,
                bbox_to_anchor=(0.5, 0.978))
     fig.tight_layout(rect=(0, 0, 1, 0.962))
     out = outdir / "risk_timeline.png"
@@ -108,8 +112,7 @@ def plot_metrics(metrics_path: Path, outdir: Path) -> None:
         rows = list(csv.DictReader(fh))
     if not rows:
         return
-    order = [m for m in ("baseline_point", "baseline_cum", "riskshift")
-             if any(r["monitor_id"] == m for r in rows)]
+    order = [m for m in MONITOR_ORDER if any(r["monitor_id"] == m for r in rows)]
     rows = sorted(rows, key=lambda r: order.index(r["monitor_id"]) if r["monitor_id"] in order else 99)
     labels = [MONITOR_STYLE.get(r["monitor_id"], {}).get("label", r["monitor_id"]) for r in rows]
     colors = [MONITOR_STYLE.get(r["monitor_id"], {}).get("color", "#555") for r in rows]
@@ -134,6 +137,8 @@ def plot_metrics(metrics_path: Path, outdir: Path) -> None:
         ax.grid(axis="y", alpha=0.25, lw=0.6)
         ax.set_axisbelow(True)
         ax.tick_params(labelsize=9)
+        if len(labels) > 3:  # con más de tres monitores las etiquetas se pisan
+            ax.tick_params(axis="x", labelrotation=30, labelsize=8)
     fig.suptitle("Comparación de monitores (piloto)", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.9))
     out = outdir / "monitor_comparison.png"

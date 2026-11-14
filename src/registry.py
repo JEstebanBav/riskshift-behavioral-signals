@@ -19,6 +19,8 @@ MONITORS = {
     "baseline_point": ("src.baseline", "BaselinePointMonitor"),
     "baseline_cum": ("src.baseline", "BaselineCumMonitor"),
     "riskshift": ("src.riskshift", "RiskShiftMonitor"),
+    "gemini_point": ("src.gemini_monitor", "GeminiPointMonitor"),
+    "gemini_history": ("src.gemini_monitor", "GeminiHistoryMonitor"),
 }
 
 # Nombres aceptados en --monitor que se traducen a un monitor_id real.

@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 from typing import Callable, Iterable
 
-from src.base_monitor import BaseMonitor
+from src.base_monitor import BaseMonitor, MonitorError
 from src.registry import MonitorNotAvailable, create_monitor, resolve_monitor_id
 from src.schemas import (
     HIDDEN_EVENT_FIELDS,
@@ -155,7 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--monitor",
         required=True,
         nargs="+",
-        help="uno o varios monitores: baseline (= baseline_point), baseline_cum, riskshift",
+        help="uno o varios monitores: baseline (= baseline_point), baseline_cum, riskshift, gemini_point, gemini_history",
     )
     parser.add_argument("--output", required=True, help="JSONL de resultados")
     parser.add_argument("--run-id", required=True, help="identificador de la corrida, p. ej. R001")
@@ -172,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"ERROR: no se encontró el archivo: {exc.filename}", file=sys.stderr)
         return 2
-    except (SchemaError, MonitorNotAvailable) as exc:
+    except (SchemaError, MonitorNotAvailable, MonitorError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 

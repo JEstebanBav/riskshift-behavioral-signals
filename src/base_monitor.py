@@ -9,6 +9,14 @@ sobrescribe ambos métodos.
 from __future__ import annotations
 
 
+class MonitorError(RuntimeError):
+    """Un monitor no pudo responder (falta configuración, falló un servicio externo, etc.).
+
+    El runner la muestra como un error legible y detiene la corrida: nunca se
+    inventa una decisión cuando el monitor no pudo decidir.
+    """
+
+
 class BaseMonitor:
     """Monitor neutro: permite todo. Sirve de clase base y de valor por defecto."""
 

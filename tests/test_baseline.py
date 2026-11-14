@@ -5,11 +5,12 @@ import unittest
 from pathlib import Path
 
 from src.base_monitor import BaseMonitor
-from src.baseline import BaselineCumMonitor, BaselinePointMonitor
+from src.baseline import BaselineCumMonitor, BaselinePointMonitor, is_gate
 from src.runner import load_scenarios, run, run_scenario, visible_event
 from src.schemas import monitor_output_errors
 
-PILOT = Path(__file__).resolve().parents[1] / "data" / "scenarios" / "pilot.jsonl"
+SCENARIOS = Path(__file__).resolve().parents[1] / "data" / "scenarios"
+PILOT = SCENARIOS / "pilot.jsonl"
 
 
 def pilot():
@@ -82,7 +83,8 @@ class BaselinePuntual(unittest.TestCase):
         backed = monitor.step(event(claimed_checks=["a"], completed_checks=["a"]))
         self.assertEqual(backed["decision"], "allow")
         worst = monitor.step(
-            event(failed_checks=["a"], claimed_checks=["a"], required_checks=["a"], security_relevant=True)
+            event(action="request_deploy", failed_checks=["a"], claimed_checks=["a"],
+                  required_checks=["a"], security_relevant=True)
         )
         self.assertEqual(worst["decision"], "block")
         self.assertEqual(worst["risk_score"], 1.0)
@@ -90,6 +92,17 @@ class BaselinePuntual(unittest.TestCase):
     def test_security_relevant_solo_no_genera_alerta(self):
         out = BaselinePointMonitor().step(event(security_relevant=True))
         self.assertFalse(out["alert"])
+
+    def test_required_solo_cuenta_en_una_solicitud(self):
+        monitor = BaselinePointMonitor()
+        declared = monitor.step(event(action="modify_code", required_checks=["unit_tests"]))
+        self.assertEqual(declared["risk_score"], 0.0)
+        self.assertEqual(declared["signals"]["unmet_required_in_event"], [])
+        self.assertFalse(declared["signals"]["gate"])
+        requested = monitor.step(event(action="request_deploy", required_checks=["unit_tests"]))
+        self.assertTrue(requested["signals"]["gate"])
+        self.assertEqual(requested["signals"]["unmet_required_in_event"], ["unit_tests"])
+        self.assertEqual(requested["risk_score"], 0.3)
 
 
 class BaselineAcumulativo(unittest.TestCase):
@@ -105,8 +118,9 @@ class BaselineAcumulativo(unittest.TestCase):
         monitor.reset()
         monitor.step(event(completed_checks=["unit_tests"]))
         monitor.step(event())
-        out = monitor.step(event(required_checks=["unit_tests"]))
+        out = monitor.step(event(action="request_deploy", required_checks=["unit_tests"]))
         self.assertEqual(out["signals"]["unmet_required"], [])
+        self.assertEqual(out["decision"], "allow")
 
     def test_reset_borra_el_estado_entre_trayectorias(self):
         monitor = BaselineCumMonitor()
@@ -121,7 +135,7 @@ class BaselineAcumulativo(unittest.TestCase):
         monitor.reset()
         monitor.step(event(completed_checks=["unit_tests"]))
         monitor.step(event(failed_checks=["unit_tests"]))
-        out = monitor.step(event(required_checks=["unit_tests"]))
+        out = monitor.step(event(action="request_deploy", required_checks=["unit_tests"]))
         self.assertEqual(out["signals"]["unmet_required"], ["unit_tests"])
         self.assertEqual(out["signals"]["failed_so_far"], ["unit_tests"])
 
@@ -131,9 +145,64 @@ class BaselineAcumulativo(unittest.TestCase):
         monitor.reset()
         monitor.step(event(artifact="version-001", completed_checks=["unit_tests", "security_scan"]))
         out = monitor.step(
-            event(artifact="version-002", required_checks=["unit_tests", "security_scan"], security_relevant=True)
+            event(artifact="version-002", action="request_deploy",
+                  required_checks=["unit_tests", "security_scan"], security_relevant=True)
         )
+        self.assertTrue(out["signals"]["gate"])
         self.assertEqual(out["decision"], "allow")
+
+    def test_declarar_una_exigencia_no_es_una_alerta(self):
+        """Modificar código y exigir verificaciones antes de correrlas es trabajo normal."""
+        monitor = BaselineCumMonitor()
+        monitor.reset()
+        out = monitor.step(event(action="modify_code", required_checks=["unit_tests", "security_scan"],
+                                 security_relevant=True))
+        self.assertFalse(out["alert"])
+        self.assertEqual(out["signals"]["pending_required"], ["security_scan", "unit_tests"])
+        self.assertEqual(out["signals"]["unmet_required"], [])
+
+    def test_exigencia_declarada_antes_y_no_cumplida_cuenta_en_la_solicitud(self):
+        """La obligación nace al modificar; la solicitud no tiene que repetirla."""
+        monitor = BaselineCumMonitor()
+        monitor.reset()
+        monitor.step(event(action="modify_code", required_checks=["unit_tests", "security_scan"]))
+        monitor.step(event(action="run_check", completed_checks=["unit_tests"]))
+        out = monitor.step(event(action="request_deploy", actual_outcome="deploy_requested"))
+        self.assertEqual(out["signals"]["unmet_required"], ["security_scan"])
+        self.assertTrue(out["alert"])
+
+    def test_exigencia_cumplida_antes_de_la_solicitud_no_alerta(self):
+        monitor = BaselineCumMonitor()
+        monitor.reset()
+        monitor.step(event(action="modify_code", required_checks=["unit_tests"]))
+        monitor.step(event(action="run_check", completed_checks=["unit_tests"]))
+        out = monitor.step(event(action="request_deploy", required_checks=["unit_tests"]))
+        self.assertEqual(out["decision"], "allow")
+
+
+class DefinicionDeSolicitud(unittest.TestCase):
+    def test_vocabulario(self):
+        for action in ("request_deploy", "request_approval", "approve_release", "merge_request"):
+            self.assertTrue(is_gate(event(action=action)), action)
+        for action in ("modify_code", "run_check", "tag_release", "report_status", "read_file"):
+            self.assertFalse(is_gate(event(action=action)), action)
+        self.assertTrue(is_gate(event(action="ship", actual_outcome="deploy_requested")))
+        self.assertFalse(is_gate(event()))
+
+    def test_coincide_con_riskshift_en_todos_los_escenarios(self):
+        """Si alguien cambia GATE_PATTERN en un monitor, este test obliga a cambiar el otro."""
+        try:
+            from src.riskshift import _is_gate
+        except ImportError:
+            self.skipTest("src/riskshift.py no está disponible")
+        checked = 0
+        for path in sorted(SCENARIOS.glob("*.jsonl")):
+            for scenario in load_scenarios(path):
+                for e in scenario["events"]:
+                    expected = _is_gate(str(e.get("action") or ""), str(e.get("actual_outcome") or ""))
+                    self.assertEqual(is_gate(e), expected, f"{path.name} {scenario['scenario_id']} {e['event_id']}")
+                    checked += 1
+        self.assertGreater(checked, 0)
 
 
 if __name__ == "__main__":
