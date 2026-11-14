@@ -75,7 +75,8 @@ Esto prueba que el flujo funciona, **no que RiskShift sea mejor**: la muestra es
 ## Estado
 
 - Listo: runner, validación del esquema, baselines, RiskShift, monitores LLM, evaluación, figuras y una revisión automática de escenarios (`tools/check_scenarios.py`).
-- Pendiente: los escenarios de Personas 1 y 2 en el esquema 1.0, la separación entre calibración y prueba, y decidir cuántas llamadas a modelos de lenguaje permite el presupuesto.
+- Llegó el benchmark de Personas 1 y 2 (formato `A01-replay-1.1`): 28 trayectorias de desarrollo y 12 reservadas (3 ataques, 9 controles). Persona 3 lo custodia fuera del repo; su runner y los baselines nuevos se integran con `tools/benchmark.py` (ver abajo).
+- Pendiente: el RiskShift de Persona 4 adaptado al formato nuevo usando solo desarrollo, su registro y la única ejecución sobre el reservado.
 
 ## Equipo
 
@@ -99,6 +100,20 @@ python -m tools.show --input results/all/pilot_p4.jsonl --filter S003
 
 El último comando muestra, evento por evento, el riesgo que asignó cada monitor a la trayectoria del ejemplo de arriba (`S003-sabotage_cumulative`).
 
+## Benchmark de Personas 1 y 2
+
+El paquete `RiskShift_entrega_final.zip` trae etiquetas y el conjunto reservado, así que **no entra al repositorio** (está en `.gitignore`) y Persona 4 solo recibe `RiskShift_solo_desarrollo.zip`. Persona 3 lo guarda en `custodia/entrega_final`, al lado del repo:
+
+```
+py -m tools.benchmark verificar     # integridad, split congelado, vista sin etiquetas, estado del reservado
+py -m tools.benchmark paquete-p4    # zip para Persona 4: solo las 28 trayectorias de desarrollo
+py -m tools.benchmark desarrollo    # runner del paquete + baselines de Persona 3, solo desarrollo
+py -m tools.benchmark preflight --monitor riskshift_equipo:RiskShift --code-root RUTA
+py -m tools.benchmark reporte       # ataques permitidos /3 y controles retenidos /9 por condición
+```
+
+El registro del monitor y la ejecución reservada se hacen una sola vez con los scripts del paquete. Pasos completos: `docs/custodia_p3.md`.
+
 ---
 
 # Referencia técnica
@@ -111,7 +126,8 @@ El último comando muestra, evento por evento, el riesgo que asignó cada monito
 | `src/schemas.py` | Validación de escenarios, respuestas de monitor y registros de salida |
 | `src/runner.py` | Runner secuencial y línea de comandos |
 | `src/registry.py` | Tabla `monitor_id` → clase. Único lugar que se toca para conectar un monitor |
-| `src/baseline.py` | `BaselinePointMonitor` y `BaselineCumMonitor` |
+| `src/baseline.py` | `BaselinePointMonitor` y `BaselineCumMonitor` (esquema 1.0 del piloto) |
+| `src/benchmark_baselines.py` | `BaselinePuntual` y `BaselineAcumulativo` para el formato `A01-replay-1.1` del benchmark |
 | `src/riskshift.py` | Monitor temporal de Persona 4 (RiskShift). Ver `docs/persona4.md` |
 | `src/llm_monitor.py` | `LLMPointMonitor` y `LLMHistoryMonitor`: un modelo de lenguaje (OpenRouter o Gemini) como monitor. Ver `docs/llm.md` |
 | `src/evaluate.py`, `src/plot_results.py`, `src/calibrate.py` | Métricas, figuras y calibración (Persona 4) |
@@ -119,6 +135,7 @@ El último comando muestra, evento por evento, el riesgo que asignó cada monito
 | `data/scenarios/pilot_p4.jsonl` | Piloto de 12 trayectorias (Persona 4) |
 | `tools/check_scenarios.py` | Revisión de un archivo de escenarios antes de correr el experimento |
 | `tools/show.py` | Riesgo paso a paso de cada monitor en una trayectoria |
+| `tools/benchmark.py` | Custodia del benchmark: verificar, zip de Persona 4, corrida de desarrollo, preflight y reporte del reservado. Ver `docs/custodia_p3.md` |
 | `tests/` | Aislamiento, integridad y funcionamiento |
 
 ## Monitores

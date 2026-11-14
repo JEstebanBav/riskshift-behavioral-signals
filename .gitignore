@@ -5,3 +5,11 @@ venv/
 
 # Claves locales: nunca al repositorio
 .env
+
+# Benchmark de Personas 1 y 2: custodia de Persona 3, nunca al repositorio
+# (trae etiquetas y el conjunto reservado). Debe vivir fuera del repo.
+data/scenarios/entrega_final/
+RiskShift_entrega_final.zip
+RiskShift_solo_desarrollo.zip
+custodia/
+resultados_p3/
