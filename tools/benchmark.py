@@ -329,7 +329,7 @@ def desarrollo(entrega: Path, monitors: list, mode: str, out_dir: Path) -> dict:
 PREFLIGHT_CHILD = r"""
 import json, sys
 from pathlib import Path
-code_root, entry_file, a01, dev, module_name, class_name = sys.argv[1:7]
+code_root, entry_file, a01, dev, module_name, class_name, logs_path = sys.argv[1:8]
 sys.path.insert(0, code_root)
 import importlib
 module = importlib.import_module(module_name)
@@ -347,11 +347,13 @@ scenarios = read_jsonl(Path(dev) / "scenarios.jsonl")
 labels = {s["scenario_id"]: {} for s in scenarios}
 first = run(scenarios, labels, "passive", monitor_types={"equipo": factory})
 second = run(scenarios, labels, "passive", monitor_types={"equipo": factory})
+Path(logs_path).write_text(json.dumps(first), encoding="utf-8")
 print(json.dumps({"decisions": len(first), "deterministic": json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)}))
 """
 
 
-def preflight(entrega: Path, monitor: str, code_root: Path) -> list:
+def preflight(entrega: Path, monitor: str, code_root: Path, out_dir=None) -> list:
+    """Si out_dir se da, también evalúa sobre desarrollo con las etiquetas reales (solo custodia)."""
     out = []
     code_root = code_root.resolve()
     if not code_root.is_dir():
@@ -362,6 +364,9 @@ def preflight(entrega: Path, monitor: str, code_root: Path) -> list:
     if git_root(code_root):
         out.append(("AVISO", "la carpeta del código está dentro de un repo git: el hash cubre todos sus archivos "
                     "(resultados, datos, .env). Mejor una carpeta aislada con solo el monitor y sus dependencias."))
+    if os.environ.get("RISKSHIFT_PARAMS"):
+        out.append(("FALLA", "la variable RISKSHIFT_PARAMS está definida: cambia los umbrales de RiskShift desde fuera "
+                    "del código congelado. Quítala antes de registrar y de ejecutar el reservado."))
     if (code_root / ".env").exists():
         out.append(("AVISO", "hay un .env en la carpeta del código: su contenido entraría en el hash congelado"))
 
@@ -382,9 +387,10 @@ def preflight(entrega: Path, monitor: str, code_root: Path) -> list:
         script.write_text(PREFLIGHT_CHILD, encoding="utf-8")
         proc = subprocess.run(
             [sys.executable, "-I", str(script), str(code_root), before["entry_file"], str(entrega / "A01"),
-             str(entrega / DEV_DIR), module_name, class_name],
+             str(entrega / DEV_DIR), module_name, class_name, str(Path(tmp) / "logs.json")],
             capture_output=True, text=True, cwd=str(entrega), timeout=600,
         )
+        logs = json.loads((Path(tmp) / "logs.json").read_text(encoding="utf-8")) if proc.returncode == 0 else []
     if proc.returncode != 0:
         detail = (proc.stderr.strip().splitlines() or ["(sin detalle)"])[-1]
         return out + [("FALLA", f"el monitor falla sobre desarrollo con solo su carpeta en el path: {detail}")]
@@ -399,6 +405,23 @@ def preflight(entrega: Path, monitor: str, code_root: Path) -> list:
                     "En el reservado eso hace fallar la verificación final y consume el intento."))
     else:
         out.append(("OK", "el monitor no modifica su carpeta al ejecutarse"))
+    labels_path = entrega / DEV_DIR / "labels.jsonl"
+    if out_dir is not None and logs and not labels_path.is_file():
+        out.append(("AVISO", "no está labels.jsonl de desarrollo: se omite la evaluación con etiquetas"))
+    elif out_dir is not None and logs:
+        labels = {l["scenario_id"]: l for l in read_jsonl(labels_path)}
+        for row in logs:
+            row["monitor_id"] = monitor
+            row["evaluation"] = labels[row["scenario_id"]]
+        summary = summarize(logs)
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "desarrollo_equipo_resumen.md").write_text(
+            summary_markdown(summary, f"Desarrollo con el monitor del equipo ({monitor})"), encoding="utf-8")
+        m = summary[monitor]
+        out.append(("OK", f"desarrollo con etiquetas reales: ataques permitidos {m['attacks_permitted']}/{m['attacks']}, "
+                    f"controles retenidos {m['controls_retained']}/{m['controls']} "
+                    f"(detalle en {out_dir / 'desarrollo_equipo_resumen.md'}; no compartir con Persona 4)"))
     return out
 
 
@@ -476,11 +499,12 @@ def main(argv=None) -> int:
         print(f"Resultados en {out_dir} (fuera del paquete).")
         return 0
     if args.command == "preflight":
-        checks = preflight(entrega, args.monitor, args.code_root)
+        checks = preflight(entrega, args.monitor, args.code_root, results_dir(entrega))
         code = print_checks(checks)
         if code == 0:
             root = args.code_root.resolve()
-            print("\nCuando Persona 4 confirme que el código es definitivo, desde la carpeta del paquete:")
+            print("\nCuando Persona 4 confirme que el código es definitivo, desde la carpeta del paquete")
+            print("(en PowerShell, antes: Remove-Item Env:RISKSHIFT_PARAMS -ErrorAction SilentlyContinue):")
             print(f'  py scripts/registrar_monitor.py --monitor {args.monitor} --code-root "{root}"')
             print(f'  py scripts/ejecutar_a01.py --dataset reservado --monitor {args.monitor} '
                   f'--search-path "{root}" --monitor-sha256 HASH_QUE_IMPRIMA_EL_REGISTRO')

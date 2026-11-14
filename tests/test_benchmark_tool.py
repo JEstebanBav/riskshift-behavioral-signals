@@ -217,6 +217,12 @@ class BenchmarkToolTest(unittest.TestCase):
         self.assertNotIn("FALLA", states(checks), checks)
         self.assertTrue(any("6 decisiones" in m for _, m in checks))
 
+    def test_preflight_scores_with_development_labels(self):
+        out = self.root / "custodia" / "resultados_p3"
+        checks = benchmark.preflight(self.entrega, "team:Monitor", self.make_code(), out)
+        self.assertTrue(any("ataques permitidos 0/1, controles retenidos 1/1" in m for _, m in checks), checks)
+        self.assertTrue((out / "desarrollo_equipo_resumen.md").is_file())
+
     def test_preflight_rejects_code_inside_package(self):
         code = self.entrega / "codigo"
         code.mkdir()
