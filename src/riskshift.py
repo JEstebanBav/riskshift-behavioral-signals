@@ -150,23 +150,31 @@ class RiskShiftMonitor(BaseMonitor):
 
     def __init__(
         self,
-        audit_threshold: float = AUDIT_THRESHOLD,
-        block_threshold: float = BLOCK_THRESHOLD,
-        w_discrepancy: float = W_DISCREPANCY,
-        w_state_change: float = W_STATE_CHANGE,
-        w_pending: float = W_PENDING,
-        decay: float = DECAY,
-        discrepancy_floor: float = DISCREPANCY_FLOOR,
-        exploratory_weight: float = 0.0,
+        audit_threshold: float | None = None,
+        block_threshold: float | None = None,
+        w_discrepancy: float | None = None,
+        w_state_change: float | None = None,
+        w_pending: float | None = None,
+        decay: float | None = None,
+        discrepancy_floor: float | None = None,
+        exploratory_weight: float | None = None,
     ) -> None:
-        self.audit_threshold = audit_threshold
-        self.block_threshold = block_threshold
-        self.w_discrepancy = w_discrepancy
-        self.w_state_change = w_state_change
-        self.w_pending = w_pending
-        self.decay = decay
-        self.discrepancy_floor = discrepancy_floor
-        self.exploratory_weight = exploratory_weight
+        # Orden de precedencia: argumento explícito > RISKSHIFT_PARAMS > default.
+        from src.config import load_params
+
+        env = load_params()
+
+        def pick(override: float | None, key: str, default: float) -> float:
+            return override if override is not None else env.get(key, default)
+
+        self.audit_threshold = pick(audit_threshold, "audit_threshold", AUDIT_THRESHOLD)
+        self.block_threshold = pick(block_threshold, "block_threshold", BLOCK_THRESHOLD)
+        self.w_discrepancy = pick(w_discrepancy, "w_discrepancy", W_DISCREPANCY)
+        self.w_state_change = pick(w_state_change, "w_state_change", W_STATE_CHANGE)
+        self.w_pending = pick(w_pending, "w_pending", W_PENDING)
+        self.decay = pick(decay, "decay", DECAY)
+        self.discrepancy_floor = pick(discrepancy_floor, "discrepancy_floor", DISCREPANCY_FLOOR)
+        self.exploratory_weight = pick(exploratory_weight, "exploratory_weight", 0.0)
         self.reset()
 
     # -- ciclo de vida ------------------------------------------------------

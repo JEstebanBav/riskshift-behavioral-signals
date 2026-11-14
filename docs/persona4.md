@@ -54,7 +54,16 @@ diferencias de diseño frente a un esquema con `is_critical_action` y
    `block` (0.85), obligación pendiente → `audit` (0.62), limpio → `allow`.
 
 Umbrales: `audit` 0.40, `block` 0.70. Pesos: discrepancia 0.40, cambio de
-estado 0.25, pendientes 0.35. Todo calibrable con `src/calibrate.py`.
+estado 0.25, pendientes 0.35. Todo calibrable con `src/calibrate.py`. Los
+parámetros calibrados se inyectan sin tocar el runner:
+
+```
+RISKSHIFT_PARAMS=results/best_params.json \
+  python -m src.runner --input ... --monitor riskshift --output ...
+```
+
+Precedencia: argumento del constructor > `RISKSHIFT_PARAMS` > valores del
+código (ver `src/config.py`).
 
 ## 4. Comandos
 
@@ -127,5 +136,7 @@ en su README.
    trayectorias) y conciliar nombres de `evaluation` y de `condition`.
 2. Revisar con Persona 1 el vocabulario de `action` y ajustar `MUTATING_RULES`
    (hoy cubre `modify_*`, `delete_*test*`, `chmod`, `deploy`, `tag_release`, etc.).
-3. Calibrar en un split separado y evaluar **una sola vez** en el de test.
-4. Congelar umbrales y generar las figuras finales + tabla de limitaciones.
+3. Calibrar en un split separado (`tools/split_scenarios.py`, pendiente),
+   evaluar **una sola vez** en el de test y congelar umbrales con
+   `RISKSHIFT_PARAMS`.
+4. Figuras finales, `docs/ficha-tecnica.md` y tabla de limitaciones.

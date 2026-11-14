@@ -1,0 +1,3 @@
+# El núcleo (runner, baselines, RiskShift, evaluación) usa sólo la librería
+# estándar de Python 3.9 o superior. Las figuras de src/plot_results.py requieren:
+matplotlib>=3.7

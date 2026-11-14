@@ -1,6 +1,6 @@
 # riskshift-behavioral-signals
 
-Infraestructura común de RiskShift (Persona 3): runner secuencial, validación del esquema 1.0, baselines de referencia, fixtures piloto y tests. Solo usa la librería estándar de Python (3.9 o superior).
+Infraestructura común de RiskShift (Persona 3): runner secuencial, validación del esquema 1.0, baselines de referencia, fixtures piloto y tests. El núcleo (runner, baselines, RiskShift y evaluación) usa solo la librería estándar de Python (3.9 o superior). Las figuras de `src/plot_results.py` requieren `pip install -r requirements.txt`.
 
 ## Cómo ejecutar
 
